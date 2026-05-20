@@ -151,7 +151,7 @@ namespace AutoCita.ViewModels
                 Id         = CitaId,
                 VehiculoId = VehiculoId,
                 SedeId     = SedeId,
-                FechaHora  = DateTime.SpecifyKind(FechaHora, DateTimeKind.Local).ToUniversalTime()
+                FechaHora  = DateTime.SpecifyKind(FechaHora, DateTimeKind.Local)
             };
 
             var (disponible, mensaje) = await _citaServicio.ObtenerDisponibilidadAsync(citaProvisional);

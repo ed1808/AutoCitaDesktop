@@ -68,7 +68,7 @@ namespace AutoCita.Services
         /// <returns>True si hay disponibilidad, False si existe conflicto.</returns>
         public async Task<(bool disponible, string mensaje)> ObtenerDisponibilidadAsync(Cita citaProvisional)
         {
-            if (DateTime.SpecifyKind(citaProvisional.FechaHora, DateTimeKind.Local) <= DateTime.Now)
+            if (DateTime.SpecifyKind(citaProvisional.FechaHora, DateTimeKind.Local).ToUniversalTime() <= DateTime.UtcNow)
                 return (false, "La fecha y hora seleccionadas son anteriores a la fecha y hora actual.");
 
             var citasExistentes = await _citaRepositorio.ObtenerPorVehiculoYFechaAsync(
