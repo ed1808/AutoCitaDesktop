@@ -65,6 +65,7 @@ namespace AutoCita.Views
             _btnNuevo.BackColor = Color.FromArgb(30, 100, 200);
             _btnNuevo.ForeColor = Color.White;
             _btnNuevo.FlatStyle = FlatStyle.Flat;
+            _btnNuevo.Anchor    = AnchorStyles.Top | AnchorStyles.Right;
             _btnNuevo.FlatAppearance.BorderSize = 0;
             _btnNuevo.Click    += (_, _) => { _vm.NuevoUsuario(); MostrarFormulario(true); };
 
