@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Npgsql;
 
 namespace AutoCita.Helpers
 {
@@ -49,6 +50,37 @@ namespace AutoCita.Helpers
             catch (Exception ex)
             {
                 throw new InvalidOperationException($"Error al guardar la configuración: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Valida que la cadena de conexión contenga los campos mínimos requeridos.
+        /// </summary>
+        /// <param name="cadena">Cadena de conexión a validar.</param>
+        /// <returns>Mensaje de error si falta algún campo, o null si la cadena es válida.</returns>
+        public static string? ValidarFormatoCadenaConexion(string cadena)
+        {
+            try
+            {
+                var builder = new NpgsqlConnectionStringBuilder(cadena);
+
+                if (string.IsNullOrWhiteSpace(builder.Host))
+                    return "La cadena de conexión debe incluir el parámetro 'Host' (servidor de base de datos).";
+
+                if (string.IsNullOrWhiteSpace(builder.Database))
+                    return "La cadena de conexión debe incluir el parámetro 'Database' (nombre de la base de datos).";
+
+                if (string.IsNullOrWhiteSpace(builder.Username))
+                    return "La cadena de conexión debe incluir el parámetro 'Username' (usuario de PostgreSQL).";
+
+                if (string.IsNullOrWhiteSpace(builder.Password))
+                    return "La cadena de conexión debe incluir el parámetro 'Password' (contraseña del usuario).";
+
+                return null; // Cadena válida
+            }
+            catch (Exception ex)
+            {
+                return $"Formato de cadena de conexión inválido: {ex.Message}";
             }
         }
 
