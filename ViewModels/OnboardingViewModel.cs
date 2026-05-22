@@ -5,7 +5,9 @@ using AutoCita.Helpers;
 using AutoCita.Models;
 using AutoCita.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
+using System.Net.Sockets;
 
 namespace AutoCita.ViewModels
 {
@@ -131,10 +133,20 @@ namespace AutoCita.ViewModels
                 return;
             }
 
+            // Validar formato de cadena de conexión antes de intentar conectar
+            var errorValidacion = ConfiguracionHelper.ValidarFormatoCadenaConexion(CadenaConexion);
+            if (errorValidacion != null)
+            {
+                MensajeError  = errorValidacion;
+                MensajeEstado = string.Empty;
+                return;
+            }
+
             try
             {
                 var opciones = new DbContextOptionsBuilder<AutoCitaDbContext>()
                     .UseNpgsql(CadenaConexion)
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
                     .Options;
 
                 await using var context = new AutoCitaDbContext(opciones);
@@ -179,10 +191,78 @@ namespace AutoCita.ViewModels
             }
             catch (Exception ex)
             {
-                MensajeError  = $"Error al conectar al servidor PostgreSQL: {ex.Message}";
+                MensajeError  = ObtenerMensajeErrorConexion(ex);
                 MensajeEstado = string.Empty;
                 ConexionValida = false;
             }
+        }
+
+        /// <summary>
+        /// Analiza la excepción y retorna un mensaje de error descriptivo y accionable.
+        /// </summary>
+        private string ObtenerMensajeErrorConexion(Exception ex)
+        {
+            // 1. Revisar si es un problema de red/DNS (SocketException)
+            var socketEx = BuscarExcepcionInterna<SocketException>(ex);
+            if (socketEx != null)
+            {
+                return "No se pudo resolver el host o conectar al servidor. Verifique:\n" +
+                       "• Que el nombre del servidor sea correcto (ej: db.abc123xyz.supabase.co)\n" +
+                       "• Que tenga acceso a internet\n" +
+                       "• Que el puerto sea el correcto (normalmente 5432 para Supabase)";
+            }
+
+            // 2. Revisar errores específicos de PostgreSQL
+            var npgsqlEx = BuscarExcepcionInterna<NpgsqlException>(ex);
+            if (npgsqlEx != null)
+            {
+                // Código 28P01: autenticación fallida (contraseña incorrecta)
+                if (npgsqlEx.SqlState == "28P01")
+                {
+                    return "Contraseña incorrecta para el usuario especificado. Verifique sus credenciales.";
+                }
+
+                // Código 3D000: base de datos no existe
+                if (npgsqlEx.SqlState == "3D000")
+                {
+                    return "La base de datos especificada no existe en el servidor. Verifique el nombre de la base de datos en la cadena de conexión.";
+                }
+
+                // Error de SSL
+                if (npgsqlEx.Message.Contains("SSL", StringComparison.OrdinalIgnoreCase) ||
+                    npgsqlEx.Message.Contains("certificate", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "Error de SSL. Para conectarse a Supabase, agregue los siguientes parámetros a su cadena de conexión:\n" +
+                           "SSL Mode=Require;Trust Server Certificate=true";
+                }
+            }
+
+            // 3. Timeout / operación cancelada
+            if (ex is TimeoutException || ex is OperationCanceledException)
+            {
+                return "Tiempo de espera agotado al intentar conectar. Verifique:\n" +
+                       "• El host y puerto (normalmente 5432 para Supabase)\n" +
+                       "• Que el servidor esté disponible\n" +
+                       "• Su conexión a internet";
+            }
+
+            // 4. Mensaje genérico con detalles de la excepción
+            return $"Error al conectar al servidor PostgreSQL: {ex.Message}";
+        }
+
+        /// <summary>
+        /// Busca una excepción específica en la cadena de InnerException.
+        /// </summary>
+        private T? BuscarExcepcionInterna<T>(Exception ex) where T : Exception
+        {
+            var actual = ex;
+            while (actual != null)
+            {
+                if (actual is T resultado)
+                    return resultado;
+                actual = actual.InnerException;
+            }
+            return null;
         }
 
         /// <summary>
@@ -215,6 +295,7 @@ namespace AutoCita.ViewModels
             {
                 var opciones = new DbContextOptionsBuilder<AutoCitaDbContext>()
                     .UseNpgsql(CadenaConexion)
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
                     .Options;
 
                 await using var context = new AutoCitaDbContext(opciones);
